@@ -2,24 +2,19 @@
 require_relative './base'
 
 class Tree < Base
-  attr_accessor :target, :responses, :comments
-  ffi_lib './word-parser.so'
-
-  attach_function :postfixSets, [:pointer, :pointer], :string
-  attach_function :responseIds, [:pointer, :pointer], :string
+  attr_accessor :target, :responses, :comments, :response_ids, :postfix_sets
 
   def initialize(responses, comments, target)
     self.responses  = responses
     self.comments   = comments
     self.target     = target
+
+    parse_words
   end
 
-  def response_ids
-    @response_ids ||= responseIds(json_sentences, target)
-  end
-
-  def postfix_sets
-    @postfix_sets ||= postfixSets(json_sentences, target)
+  def parse_words
+    self.postfix_sets = JSON.parse(golangPostfixSets(json_sentences, target))
+    self.response_ids = postfix_sets.map{|item| item['ResponseID']}
   end
 
   private

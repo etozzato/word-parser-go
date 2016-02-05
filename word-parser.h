@@ -50,11 +50,9 @@ extern "C" {
 #endif
 
 
-extern GoString parseWords(char* p0, char* p1);
+extern GoString golangParseWords(char* p0, char* p1);
 
-extern GoString postfixSets(char* p0, char* p1);
-
-extern GoString responseIds(char* p0, char* p1);
+extern GoString golangPostfixSets(char* p0, char* p1);
 
 #ifdef __cplusplus
 }

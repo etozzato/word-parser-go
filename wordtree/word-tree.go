@@ -25,20 +25,6 @@ func PostfixSets(text, filter string) string {
 	return string(jsonOutput)
 }
 
-//ResponseIds is what you expect
-func ResponseIds(text, filter string) string {
-	responses := matchingSentences(text, filter, false)
-	output := make([]string, 0, len(responses))
-	for _, value := range responses {
-		output = append(output, value.ResponseID)
-	}
-	jsonOutput, err := json.Marshal(output)
-	if err != nil {
-		panic(err)
-	}
-	return string(jsonOutput)
-}
-
 func matchingSentences(jsonString string, filter string, postfixRegExp bool) []Response {
 	output := []Response{}
 	dec := json.NewDecoder(strings.NewReader(jsonString))

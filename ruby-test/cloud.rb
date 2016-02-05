@@ -3,9 +3,6 @@ require_relative './base'
 
 class Cloud < Base
   attr_accessor :stop_words, :word_cloud, :heaviest_word, :responses, :comments
-  ffi_lib './word-parser.so'
-
-  attach_function :parseWords, [:pointer, :pointer], :string
 
   def initialize(responses, comments, stop_words)
     self.responses  = responses
@@ -18,7 +15,7 @@ class Cloud < Base
   private
 
   def parse_words
-    self.word_cloud = JSON.parse(parseWords(sentences.join("*"), stop_words)) rescue []
+    self.word_cloud = JSON.parse(golangParseWords(sentences.join("*"), stop_words)) rescue []
     self.heaviest_word = word_cloud.first['Text'] if word_cloud.any?
   end
 
