@@ -9,83 +9,77 @@ import (
 	"strings"
 )
 
-// Response is what you expect
+// Response is the main struct
 type Response struct {
 	ResponseID string
 	Sentences  [][]string
 }
 
-//PostfixSets is what you expect
-func PostfixSets(text, filter string) string {
-	responses := matchingSentences(text, filter, true)
-	jsonOutput, err := json.Marshal(responses)
+//PostfixSets is the exported routine
+// Entry point of the algorithm: it receives an array of Responses in JSON format {"ResponseID":"1","Sentences":[['sentence1', 'sentence2']]} and the heaviest word of the set, which is the root of the tree.
+func PostfixSets(JSONResponses, root string) string {
+	responses := parseJSONResponses(JSONResponses)
+	postfixSets := postfixSetsFromResponses(responses, root)
+	JSONPostFixSets, err := json.Marshal(postfixSets)
 	if err != nil {
 		panic(err)
 	}
-	return string(jsonOutput)
+	return string(JSONPostFixSets)
 }
 
-func matchingSentences(jsonString string, filter string, postfixRegExp bool) []Response {
+// parses JSONResponses into a []Response
+func parseJSONResponses(JSONResponses string) []Response {
 	output := []Response{}
-	dec := json.NewDecoder(strings.NewReader(jsonString))
-	var r Response
+	decoder := json.NewDecoder(strings.NewReader(JSONResponses))
 	for {
-		if err := dec.Decode(&r); err == io.EOF {
+		var r Response
+		if err := decoder.Decode(&r); err == io.EOF {
 			break
 		} else if err != nil {
 			log.Fatal("DecodeJSON error:", err)
 		}
-		if len(filter) > 0 {
-			var f Response
-			for _, sentence := range r.Sentences {
-				filtered := matchSentences(sentence, filter, postfixRegExp)
-				if len(filtered) > 0 {
-					f.Sentences = append(f.Sentences, filtered)
-				}
+		output = append(output, r)
+	}
+	return output
+}
+
+// removes response.Sentences that don't match root, removes root from the matched sentences
+func postfixSetsFromResponses(responses []Response, root string) []Response {
+	output := []Response{}
+	filterRe := regexp.MustCompile("(?i)\\b" + root + "\\b([^.!?]*[.!?])")
+	tokensRe := regexp.MustCompile("([\\s.,;:-])")
+	for _, response := range responses {
+		var postPhrases [][]string
+		for _, sentence := range response.Sentences[0] {
+			filterReStringSubmatch := filterRe.FindAllStringSubmatch(sentence, -1)
+			if len(filterReStringSubmatch) > 0 {
+				// FindAllStringSubmatch returns [[:match, :capure]], we need to keep only :capure - so we delete the first element of the slice.
+				filterReStringSubmatch[0] = append(filterReStringSubmatch[0][:0], filterReStringSubmatch[0][1:]...)
+				filterReStringSubmatch[0] = parsePostPhrase(filterReStringSubmatch[0][0], tokensRe)
+				postPhrases = append(postPhrases, filterReStringSubmatch...)
 			}
-			if len(f.Sentences) > 0 {
-				f.ResponseID = r.ResponseID
-				output = append(output, f)
-			}
-		} else {
-			output = append(output, r)
+		}
+		if len(postPhrases) > 0 {
+			output = append(
+				output,
+				Response{ResponseID: response.ResponseID, Sentences: postPhrases})
 		}
 	}
 	return output
 }
 
-func matchSentences(slice []string, filter string, postfixRegExp bool) []string {
-	var filtered []string
-	filterRe := regexp.MustCompile("(?i)\\b" + filter + "\\b")
-	subStringsRe := regexp.MustCompile("[^.!?]+[.!?]?")
-	tokensRe := regexp.MustCompile("(\\s+|\\.|,|;|:|-)")
-	for _, str := range slice {
-		subStrings := subStringsRe.FindAllStringSubmatch(str, -1)
-		for _, value := range subStrings {
-			if filterRe.MatchString(value[0]) {
-				if postfixRegExp {
-					splits := filterRe.Split(value[0], -1)
-					postPhrase := strings.Join(splits[1:len(splits)], filter)
-					sentences := tokenize(postPhrase, tokensRe)
-					for _, sentence := range sentences {
-						filtered = append(filtered, " "+sentence)
-					}
-				} else {
-					filtered = append(filtered, value[0])
-				}
+// splits the postPhrase into individual words
+func parsePostPhrase(sentence string, re *regexp.Regexp) []string {
+	tokens := strings.Split(re.ReplaceAllString(sentence, "\u2980$1\u2980"), "\u2980")
+	output := []string{}
+	for _, token := range tokens {
+		// unless the token is empty
+		if strings.TrimSpace(token) != "" {
+			// unless the token is :punctuation, we prepend a space
+			if !re.MatchString(token) {
+				token = " " + token
 			}
-		}
-	}
-	return filtered
-}
-
-func tokenize(str string, re *regexp.Regexp) []string {
-	tmp := re.ReplaceAllString(str, "\u2980$1\u2980")
-	words := strings.Split(tmp, "\u2980")
-	output := words[:0]
-	for _, value := range words {
-		if value != "" && value != " " {
-			output = append(output, value)
+			output = append(output, token)
 		}
 	}
 	return output
