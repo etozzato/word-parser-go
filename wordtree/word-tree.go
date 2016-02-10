@@ -56,20 +56,22 @@ func matchingSentences(jsonString string, filter string, postfixRegExp bool) []R
 
 func matchSentences(slice []string, filter string, postfixRegExp bool) []string {
 	var filtered []string
-	re := regexp.MustCompile("(?i)\\b" + filter + "\\b")
+	filterRe := regexp.MustCompile("(?i)\\b" + filter + "\\b")
+	subStringsRe := regexp.MustCompile("[^.!?]+[.!?]?")
+	tokensRe := regexp.MustCompile("(\\s+|\\.|,|;|:|-)")
 	for _, str := range slice {
-		subStrings := scanStr(str, "([^\\.\\!\\?]+[\\.\\!\\?]?)\\s*", false)
+		subStrings := subStringsRe.FindAllStringSubmatch(str, -1)
 		for _, value := range subStrings {
-			if re.MatchString(value) {
+			if filterRe.MatchString(value[0]) {
 				if postfixRegExp {
-					splits := re.Split(value, -1)
+					splits := filterRe.Split(value[0], -1)
 					postPhrase := strings.Join(splits[1:len(splits)], filter)
-					sentences := scanStr(postPhrase, "([\\s\\.,;:-])", true)
+					sentences := tokenize(postPhrase, tokensRe)
 					for _, sentence := range sentences {
 						filtered = append(filtered, " "+sentence)
 					}
 				} else {
-					filtered = append(filtered, value)
+					filtered = append(filtered, value[0])
 				}
 			}
 		}
@@ -77,20 +79,14 @@ func matchSentences(slice []string, filter string, postfixRegExp bool) []string 
 	return filtered
 }
 
-func scanStr(str string, pat string, isolate bool) []string {
-	re := regexp.MustCompile(pat)
-	if isolate {
-		whitespaceRe := regexp.MustCompile("\u2980\\s+\u2980")
-		tmpStr := re.ReplaceAllString(str, "\u2980$1\u2980")
-		tmpStr = whitespaceRe.ReplaceAllString(tmpStr, "\u2980")
-		words := strings.Split(tmpStr, "\u2980")
-		output := words[:0]
-		for _, value := range words {
-			if value != "" && value != " " {
-				output = append(output, value)
-			}
+func tokenize(str string, re *regexp.Regexp) []string {
+	tmp := re.ReplaceAllString(str, "\u2980$1\u2980")
+	words := strings.Split(tmp, "\u2980")
+	output := words[:0]
+	for _, value := range words {
+		if value != "" && value != " " {
+			output = append(output, value)
 		}
-		return output
 	}
-	return strings.Split(re.ReplaceAllString(str, "$1\u2980"), "\u2980")
+	return output
 }
