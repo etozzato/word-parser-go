@@ -9,14 +9,20 @@ import (
 	"strings"
 )
 
-// Response is the main struct
+// Response is the input struct
 type Response struct {
-	ResponseID string
+	ResponseID int
+	Text       string
+}
+
+// PostfixSet is output struct
+type PostfixSet struct {
+	ResponseID int
 	Sentences  [][]string
 }
 
 //PostfixSets is the exported routine
-// Entry point of the algorithm: it receives an array of Responses in JSON format {"ResponseID":"1","Sentences":[['sentence1', 'sentence2']]} and the heaviest word of the set, which is the root of the tree.
+// Entry point of the algorithm: it receives an array of Responses in JSON format "[{\"ResponseID\":645233,\"Text\":\"Sailing with my dad on a windless day on the willamette river. My happy place.\"}]" and the heaviest word of the set, which is the root of the tree.
 func PostfixSets(JSONResponses, root string) string {
 	responses := parseJSONResponses(JSONResponses)
 	postfixSets := postfixSetsFromResponses(responses, root)
@@ -31,44 +37,40 @@ func PostfixSets(JSONResponses, root string) string {
 func parseJSONResponses(JSONResponses string) []Response {
 	output := []Response{}
 	decoder := json.NewDecoder(strings.NewReader(JSONResponses))
-	for {
-		var r Response
-		if err := decoder.Decode(&r); err == io.EOF {
-			break
-		} else if err != nil {
-			log.Fatal("DecodeJSON error:", err)
-		}
-		output = append(output, r)
+	err := decoder.Decode(&output)
+	if err != nil && err != io.EOF {
+		log.Fatal("DecodeJSON error:", err)
 	}
 	return output
 }
 
-// removes response.Sentences that don't match root, removes root from the matched sentences
-func postfixSetsFromResponses(responses []Response, root string) []Response {
-	output := []Response{}
+// removes response.Sentences that don't match root, removes root from the matched sentences []Response
+func postfixSetsFromResponses(responses []Response, root string) []PostfixSet {
+	responsesMap := make(map[int][][]string)
+	output := []PostfixSet{}
+
 	filterRe := regexp.MustCompile("(?i)\\b" + root + "\\b([^.!?]*[.!?])")
 	tokensRe := regexp.MustCompile("([\\s.,;:-])")
 	for _, response := range responses {
-		var postPhrases [][]string
-		for _, sentence := range response.Sentences[0] {
-			filterReStringSubmatch := filterRe.FindAllStringSubmatch(sentence, -1)
-			if len(filterReStringSubmatch) > 0 {
-				// FindAllStringSubmatch returns [[:match, :capure]], we need to keep only :capure - so we delete the first element of the slice.
-				filterReStringSubmatch[0] = append(filterReStringSubmatch[0][:0], filterReStringSubmatch[0][1:]...)
-				filterReStringSubmatch[0] = parsePostPhrase(filterReStringSubmatch[0][0], tokensRe)
-				postPhrases = append(postPhrases, filterReStringSubmatch...)
+		filterReStringSubmatch := filterRe.FindAllStringSubmatch(response.Text, -1)
+		if len(filterReStringSubmatch) > 0 {
+			for _, stringSubmatch := range filterReStringSubmatch {
+				postPhrases := parsePostPhrase(stringSubmatch[1], tokensRe)
+				if len(postPhrases) > 0 {
+					responsesMap[response.ResponseID] = append(responsesMap[response.ResponseID], postPhrases)
+				}
 			}
 		}
-		if len(postPhrases) > 0 {
-			output = append(
-				output,
-				Response{ResponseID: response.ResponseID, Sentences: postPhrases})
-		}
 	}
+
+	for responseID, tokens := range responsesMap {
+		output = append(output, PostfixSet{ResponseID: responseID, Sentences: tokens})
+	}
+
 	return output
 }
 
-// splits the postPhrase into individual words
+// // splits the postPhrase into individual words
 func parsePostPhrase(sentence string, re *regexp.Regexp) []string {
 	tokens := strings.Split(re.ReplaceAllString(sentence, "\u2980$1\u2980"), "\u2980")
 	output := []string{}
