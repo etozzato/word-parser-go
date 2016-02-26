@@ -26,6 +26,6 @@ class Tree < Base
 
 end
 
-wt = Tree.new([], [], "project")
+wt = Tree.new([], [], "love")
 puts "response_ids: " + wt.response_ids.to_s
 puts "postfix_sets: " + wt.postfix_sets.to_s
